@@ -1,0 +1,8 @@
+[package]
+name = "cribbage-tui"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+engine = { version = "0.1.0", path = "../cribbage-engine" }
+ratatui = "0.29.0"
