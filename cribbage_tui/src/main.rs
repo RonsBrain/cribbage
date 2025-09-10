@@ -91,9 +91,10 @@ fn ui(frame: &mut Frame, engine: &EngineState) {
             frame.render_widget("Start a new game? [Y/n]", frame.area());
         }
         EngineState::DealerChosen(result) => {
-            let [player_ui, cpu_ui, dealer_ui] = Layout::default()
+            let [player_ui, cpu_ui, dealer_ui, prompt_ui] = Layout::default()
                 .direction(Direction::Vertical)
                 .constraints([
+                    Constraint::Length(1),
                     Constraint::Length(1),
                     Constraint::Length(1),
                     Constraint::Length(1),
@@ -107,11 +108,12 @@ fn ui(frame: &mut Frame, engine: &EngineState) {
                 format!("I cut {}", format_card(&result.cut_cards[&Player::Second])),
                 cpu_ui,
             );
-            let dealer = match result.dealer {
+            let dealer = match result.game_data.dealer {
                 Player::First => "You are",
                 Player::Second => "I am",
             };
             frame.render_widget(format!("{} the dealer", dealer), dealer_ui);
+            frame.render_widget("(Press any key)", prompt_ui);
         }
     }
 }

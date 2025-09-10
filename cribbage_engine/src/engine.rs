@@ -3,10 +3,19 @@ use rand::rng;
 use rand::seq::SliceRandom;
 use std::collections::HashMap;
 
-#[derive(Hash, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, Hash, PartialEq, Eq, Debug)]
 pub enum Player {
     First,
     Second,
+}
+
+impl Player {
+    fn next(&self) -> Self {
+        match self {
+            Player::First => Player::Second,
+            Player::Second => Player::First,
+        }
+    }
 }
 
 fn get_random_cards(num_cards: usize) -> Vec<Card> {
@@ -25,19 +34,12 @@ fn get_random_cards(num_cards: usize) -> Vec<Card> {
     cards.drain(0..num_cards).collect()
 }
 
-pub struct Start;
-
-pub struct DealerResult {
-    pub cut_cards: HashMap<Player, Card>,
-    pub dealer: Player,
+pub struct Start {
+    cards: [Card; 2],
 }
 
 impl Start {
     fn new() -> Self {
-        Self {}
-    }
-
-    pub fn choose_dealer(&self) -> EngineState {
         let mut cards;
         loop {
             cards = get_random_cards(2);
@@ -48,25 +50,61 @@ impl Start {
             }
             break;
         }
+        Self {
+            cards: [cards[0], cards[1]],
+        }
+    }
 
-        let mut cut_cards = HashMap::new();
-        cut_cards.insert(Player::First, cards[0]);
-        cut_cards.insert(Player::Second, cards[1]);
+    pub fn choose_dealer(&self) -> EngineState {
+        let cut_cards = HashMap::from([
+            (Player::First, self.cards[0]),
+            (Player::Second, self.cards[1]),
+        ]);
 
-        let dealer = if cards[0].rank < cards[1].rank {
+        let dealer = if self.cards[0].rank < self.cards[1].rank {
             Player::First
         } else {
             Player::Second
         };
 
-        let result = DealerResult { cut_cards, dealer };
+        let game_data = GameData::new(dealer);
+        let result = CutResult {
+            cut_cards,
+            game_data,
+        };
         EngineState::DealerChosen(result)
     }
 }
 
+pub struct CutResult {
+    pub cut_cards: HashMap<Player, Card>,
+    pub game_data: GameData,
+}
+
+pub struct GameData {
+    pub dealer: Player,
+    pub current_player: Player,
+    pub scores: HashMap<Player, u8>,
+}
+
+impl GameData {
+    fn new(dealer: Player) -> Self {
+        Self {
+            dealer,
+            current_player: dealer.next(),
+            scores: HashMap::from([(Player::First, 0), (Player::Second, 0)]),
+        }
+    }
+}
+
+pub struct DealResult {
+    pub dealer: Player,
+    pub cards: HashMap<Player, [Card; 6]>,
+}
+
 pub enum EngineState {
     NewGame(Start),
-    DealerChosen(DealerResult),
+    DealerChosen(CutResult),
 }
 
 pub fn new_engine() -> EngineState {
@@ -79,15 +117,30 @@ mod tests {
 
     #[test]
     fn test_chooses_correct_dealer() {
-        for _times in 0..100 {
+        for (cards, dealer, current_player) in [
+            (
+                [Card::try_from("as").unwrap(), Card::try_from("ks").unwrap()],
+                Player::First,
+                Player::Second,
+            ),
+            (
+                [Card::try_from("ks").unwrap(), Card::try_from("as").unwrap()],
+                Player::Second,
+                Player::First,
+            ),
+        ] {
             let engine = new_engine();
-            if let EngineState::NewGame(start) = engine {
-                if let EngineState::DealerChosen(data) = start.choose_dealer() {
-                    if data.cut_cards[&Player::First].rank < data.cut_cards[&Player::Second].rank {
-                        assert_eq!(data.dealer, Player::First);
-                    } else {
-                        assert_eq!(data.dealer, Player::Second);
-                    }
+            if let EngineState::NewGame(mut start) = engine {
+                start.cards = cards;
+                if let EngineState::DealerChosen(result) = start.choose_dealer() {
+                    assert_eq!(result.cut_cards[&Player::First], cards[0]);
+                    assert_eq!(result.cut_cards[&Player::Second], cards[1]);
+                    assert_eq!(result.game_data.dealer, dealer);
+                    assert_eq!(result.game_data.current_player, current_player);
+                    assert_eq!(result.game_data.scores[&Player::First], 0);
+                    assert_eq!(result.game_data.scores[&Player::Second], 0);
+                } else {
+                    panic!("Game moved to incorrect state!");
                 }
             }
         }
